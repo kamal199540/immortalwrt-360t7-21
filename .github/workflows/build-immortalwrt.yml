@@ -54,15 +54,14 @@ jobs:
         echo "# CONFIG_PACKAGE_shortcut-fe is not set" >> .config
         echo "CONFIG_MTK_HNAT_PPE_THRESHOLD=30" >> .config
 
-    - name: Restore ccache cache
-      id: restore-ccache-cache
-      uses: actions/cache/restore@v4
+    - name: Cache ccache
+      uses: actions/cache@v4
       with:
         path: openwrt/.ccache
-        key: ccache-${{ matrix.version.name }}-${{ github.run_id }}
+        key: ccache-${{ matrix.version.name }}-${{ github.ref }}-${{ github.run_id }}
         restore-keys: |
+          ccache-${{ matrix.version.name }}-${{ github.ref }}-
           ccache-${{ matrix.version.name }}-
-          ccache-
 
     - name: Download all sources
       run: |
@@ -75,13 +74,6 @@ jobs:
         cd openwrt
         make -j$(nproc) V=s
 
-    - name: Save ccache cache
-      if: always()
-      uses: actions/cache/save@v4
-      with:
-        path: openwrt/.ccache
-        key: ${{ steps.restore-ccache-cache.outputs.cache-primary-key }}
-
     - name: Upload firmware artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -89,12 +81,31 @@ jobs:
         path: |
           openwrt/bin/targets/mediatek/mt7981/*.bin
           openwrt/bin/targets/mediatek/mt7981/*.itb
-        retention-days: 30
+        retention-days: 1
 
-    - name: Upload build logs (if failed)
-      if: failure()
-      uses: actions/upload-artifact@v4
+  release:
+    name: Create Release
+    runs-on: ubuntu-22.04
+    needs: build
+    if: success()
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
       with:
-        name: logs-${{ matrix.version.name }}
-        path: openwrt/logs/
-        retention-days: 7
+        path: artifacts
+
+    - name: List all files
+      run: ls -la artifacts/
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        name: ImmortalWrt 360T7 - Build ${{ github.run_number }}
+        tag_name: build-${{ github.run_number }}
+        files: |
+          artifacts/**/*.bin
+          artifacts/**/*.itb
+        fail_on_unmatched_files: false
