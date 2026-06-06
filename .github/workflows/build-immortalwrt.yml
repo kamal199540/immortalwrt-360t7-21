@@ -1,0 +1,100 @@
+name: Build ImmortalWrt for 360T7 (Both Versions)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        version:
+          - name: openwrt-interface
+            wifi-tool: mtwifi-cfg
+          - name: mediatek-interface
+            wifi-tool: luci-app-mtk
+
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v4
+
+    - name: Clone ImmortalWrt MT798x repository
+      run: |
+        git clone --depth=1 https://github.com/hanwckf/immortalwrt-mt798x.git openwrt
+
+    - name: Update feeds
+      run: |
+        cd openwrt
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: Copy base config for MT7981
+      run: |
+        cd openwrt
+        cp -f defconfig/mt7981-ax3000.config .config
+
+    - name: Apply WiFi tool specific config
+      run: |
+        cd openwrt
+        if [ "${{ matrix.version.wifi-tool }}" = "mtwifi-cfg" ]; then
+          echo "CONFIG_PACKAGE_luci-app-mtwifi-cfg=y" >> .config
+          echo "CONFIG_PACKAGE_mtwifi-cfg=y" >> .config
+          echo "# CONFIG_PACKAGE_luci-app-mtk is not set" >> .config
+        else
+          echo "CONFIG_PACKAGE_luci-app-mtk=y" >> .config
+          echo "# CONFIG_PACKAGE_luci-app-mtwifi-cfg is not set" >> .config
+          echo "# CONFIG_PACKAGE_mtwifi-cfg is not set" >> .config
+        fi
+
+    - name: Fix known issues
+      run: |
+        cd openwrt
+        echo "# CONFIG_PACKAGE_kmod-ipt-offload is not set" >> .config
+        echo "# CONFIG_PACKAGE_shortcut-fe is not set" >> .config
+        echo "CONFIG_MTK_HNAT_PPE_THRESHOLD=30" >> .config
+
+    - name: Restore ccache cache
+      id: restore-ccache-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: openwrt/.ccache
+        key: ccache-${{ matrix.version.name }}-${{ github.run_id }}
+        restore-keys: |
+          ccache-${{ matrix.version.name }}-
+          ccache-
+
+    - name: Download all sources
+      run: |
+        cd openwrt
+        make defconfig
+        make download -j8
+
+    - name: Build firmware
+      run: |
+        cd openwrt
+        make -j$(nproc) V=s
+
+    - name: Save ccache cache
+      if: always()
+      uses: actions/cache/save@v4
+      with:
+        path: openwrt/.ccache
+        key: ${{ steps.restore-ccache-cache.outputs.cache-primary-key }}
+
+    - name: Upload firmware artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: immortalwrt-${{ matrix.version.name }}-360t7
+        path: |
+          openwrt/bin/targets/mediatek/mt7981/*.bin
+          openwrt/bin/targets/mediatek/mt7981/*.itb
+        retention-days: 30
+
+    - name: Upload build logs (if failed)
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: logs-${{ matrix.version.name }}
+        path: openwrt/logs/
+        retention-days: 7
