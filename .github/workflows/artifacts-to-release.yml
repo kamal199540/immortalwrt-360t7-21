@@ -31,7 +31,7 @@ jobs:
     - name: Extract 360T7 files
       run: |
         mkdir release_files
-        find artifacts -type f \( -name "*360t7*" -o -name "*qihoo*" \) -exec cp {} release_files/ \;
+        find artifacts -type f \( -name "*360*" -o -name "*qihoo*" \) -exec cp {} release_files/ \;
         echo "✅ الملفات التي سيتم رفعها:"
         ls -la release_files/
 
