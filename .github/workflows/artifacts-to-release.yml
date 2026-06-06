@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       run_number:
-        description: 'رقم تشغيل البناء السابق (مثلاً 5)'
+        description: 'رقم تشغيل البناء السابق'
         required: true
         type: number
 
@@ -26,17 +26,16 @@ jobs:
     - name: List downloaded files
       run: |
         echo "📁 الملفات التي تم تحميلها:"
-        find artifacts -type f -name "*.bin" -o -name "*.itb"
-        ls -la artifacts/
+        find artifacts -type f
 
-    - name: Extract 360T7 files only
+    - name: Extract 360T7 files
       run: |
         mkdir release_files
         find artifacts -type f \( -name "*360t7*" -o -name "*qihoo*" \) -exec cp {} release_files/ \;
         echo "✅ الملفات التي سيتم رفعها:"
         ls -la release_files/
 
-    - name: Create Release from artifacts
+    - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         name: 360T7-Build-${{ github.event.inputs.run_number }}
