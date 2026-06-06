@@ -1,0 +1,45 @@
+name: Convert Artifacts to Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_number:
+        description: 'رقم تشغيل البناء السابق (مثلاً 5)'
+        required: true
+        type: number
+
+jobs:
+  artifacts-to-release:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+    - name: Download artifacts from previous run
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: ${{ github.event.inputs.run_number }}
+
+    - name: List downloaded files
+      run: |
+        echo "📁 الملفات التي تم تحميلها:"
+        find artifacts -type f -name "*.bin" -o -name "*.itb"
+        ls -la artifacts/
+
+    - name: Extract 360T7 files only
+      run: |
+        mkdir release_files
+        find artifacts -type f \( -name "*360t7*" -o -name "*qihoo*" \) -exec cp {} release_files/ \;
+        echo "✅ الملفات التي سيتم رفعها:"
+        ls -la release_files/
+
+    - name: Create Release from artifacts
+      uses: softprops/action-gh-release@v1
+      with:
+        name: 360T7-Build-${{ github.event.inputs.run_number }}
+        tag_name: build-${{ github.event.inputs.run_number }}
+        files: release_files/*
+        fail_on_unmatched_files: false
